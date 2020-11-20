@@ -1,71 +1,98 @@
-import os
-import urllib.request
-import glob
-import sys
-import tarfile
-import json
-import hashlib
-import configparser
-import shutil
-
-
 def rm_files(path):
+    from os import remove
+    import glob
+    from sys import exit
     try:
         for file in glob.glob(path):
-            os.remove(file)
+            remove(file)
     except PermissionError:
         print("Permission denied! Please, run with sudo.")
-        sys.exit()
+        exit()
     except OSError:
-        print("Failed to remove old files!")
-        sys.exit()
+        print("Failed to remove files:", path)
+        exit()
 
 
 def rm_dir(path):
+    import shutil
     try:
         shutil.rmtree(path)
     except OSError:
-        print("Failed to remove temp files!")
+        print("Failed to remove directory:", path)
 
 
 def mkdir(path):
+    from os import makedirs
+    from sys import exit
     try:
-        os.makedirs(path, exist_ok=True)
+        makedirs(path, exist_ok=True)
     except PermissionError:
         print("Permission denied! Please, run with sudo.")
-        sys.exit()
+        exit()
     except OSError:
-        print("Failed to create directories!")
-        sys.exit()
+        print("Failed to create directory:", path)
+        exit()
 
 
 def down_file(url, path):
+    from os.path import isfile, basename, exists
+    from os import remove
+    from urllib import request
+    from sys import exit
     try:
-        urllib.request.urlretrieve(url, path)
+        if isfile(path) is True:
+            remove(path)
+            request.urlretrieve(url, path)
+        else:
+            basename = basename(path)
+            if exists(basename) is False:
+                mkdir(basename)
+            request.urlretrieve(url, path)
     except PermissionError:
         print("Permission denied! Please, run with sudo.")
-        sys.exit()
+        exit()
     except OSError:
         print("Failed to download:", url)
-        sys.exit()
+        exit()
+
+
+def urlretrieve_and_check(url, path, shasum, tries=0):
+    from sys import exit
+    if tries < 0 or type(tries) is not int:
+        print("Incorrect tries! Exiting")
+        exit()
+    count = 0
+    if tries == 0:
+        while sha256_file(path) != shasum:
+            down_file(url, path)
+    else:
+        while count < tries and sha256_file(path) != shasum:
+            down_file(url, path)
+            count += 1
 
 
 def untar(archive, path):
+    from sys import exit
+    import tarfile
     try:
         tar = tarfile.open(archive, mode='r|xz')
         tar.extractall(path=path)
         tar.close()
     except PermissionError:
         print("Permission denied! Please, run with sudo.")
-        sys.exit()
+        exit()
     except OSError:
         print("Failed to unpacking the archive:", archive)
-        sys.exit()
+        exit()
 
 
-def sha256_file(file):
-    with open(file, "rb") as f:
-        hsh = hashlib.sha256()
+def sha256_file(path):
+    from os.path import isfile
+    from hashlib import sha256
+    if isfile(path) is False:
+        return None
+    with open(path, "rb") as f:
+        hsh = sha256()
         while True:
             data = f.read(4096)
             if not data:
@@ -74,7 +101,9 @@ def sha256_file(file):
     return hsh.hexdigest()
 
 
-def sync_repo(name, path, arch, mirror_url):
+def sync_repo(name, path, arch, mirror_url, tries):
+    from os import listdir, remove
+    from json import loads
     local_path = path + "/" + arch
     mirror_path = mirror_url + "/" + arch
 
@@ -85,51 +114,30 @@ def sync_repo(name, path, arch, mirror_url):
     rm_files(local_path + "/latest/*.conf")
     rm_files(local_path + "/latest/Latest/pkg*")
 
-    print("Creating a directory structure...")
-    mkdir(local_path + "/latest/All")
-    mkdir(local_path + "/latest/Latest")
-    mkdir(local_path + "/temp")
-
     print("Downloading packagesite.txz...")
     down_file(mirror_path + "/latest/packagesite.txz", local_path + "/temp/packagesite.txz")
 
     print("Unpacking packagesite.txz...")
     untar(local_path + "/temp/packagesite.txz", local_path + "/temp/")
 
-    print("Removing old packages...")
+    print("Removing old packages...")   # TODO read from json
     with open(local_path + "/temp/packagesite.yaml", "r") as f:
         data = str(f.read())
-        for i in os.listdir(local_path + "/latest/All/"):
-            if i in data:
-                pass
-            else:
-                os.remove(local_path + "/latest/All/" + i)
+        for i in listdir(local_path + "/latest/All/"):
+            if i not in data:
+                remove(local_path + "/latest/All/" + i)
 
     print("Downloading", arch + "...")
-    down_file(mirror_path + "/latest/Latest/pkg-devel.txz", local_path + "/latest/Latest/pkg-devel.txz")
-    down_file(mirror_path + "/latest/Latest/pkg.txz", local_path + "/latest/Latest/pkg.txz")
-    down_file(mirror_path + "/latest/Latest/pkg.txz.sig", local_path + "/latest/Latest/pkg.txz.sig")
-
-    down_file(mirror_path + "/latest/meta.conf", local_path + "/latest/meta.conf")
-    down_file(mirror_path + "/latest/meta.txz", local_path + "/latest/meta.txz")
-    down_file(mirror_path + "/latest/packagesite.txz", local_path + "/latest/packagesite.txz")
+    files = {"/latest/Latest/pkg-devel.txz", "/latest/Latest/pkg.txz", "/latest/Latest/pkg.txz.sig",
+             "/latest/meta.conf", "/latest/meta.txz", "/latest/packagesite.txz"}
+    for file in files:
+        down_file(mirror_path + file, local_path + file)
 
     with open(local_path + "/temp/packagesite.yaml", "r") as f:
         for line in f:
-            data = json.loads(line)
+            data = loads(line)
             file_path = local_path + "/latest/" + data["repopath"]
-            if os.path.isfile(file_path) is True:
-                if sha256_file(file_path) != data["sum"]:
-                    os.remove(file_path)
-                    down_file(mirror_path + "/latest/" + data["repopath"], file_path)
-                    if sha256_file(file_path) != data["sum"]:
-                        os.remove(file_path)
-                        down_file(mirror_path + "/latest/" + data["repopath"], file_path)
-            else:
-                down_file(mirror_path + "/latest/" + data["repopath"], file_path)
-                if sha256_file(file_path) != data["sum"]:
-                    os.remove(file_path)
-                    down_file(mirror_path + "/latest/" + data["repopath"], file_path)
+            urlretrieve_and_check(mirror_path + "/latest/" + data["repopath"], file_path, data["sum"], int(tries))
 
     print("Cleaning the temp directory...")
     rm_dir(local_path + "/temp/")
@@ -138,11 +146,12 @@ def sync_repo(name, path, arch, mirror_url):
 
 
 def main():
-    config = configparser.ConfigParser()
+    from configparser import ConfigParser
+    config = ConfigParser()
     config.read("settings.ini")
 
     for i in config.sections():
-        sync_repo(i, config[i]["path"], config[i]["arch"], config[i]["mirror_url"])
+        sync_repo(i, config[i]["path"], config[i]["arch"], config[i]["mirror_url"], config[i]["tries"])
 
 
 if __name__ == '__main__':

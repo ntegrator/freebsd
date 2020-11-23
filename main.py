@@ -14,9 +14,9 @@ def rm_files(path):
 
 
 def rm_dir(path):
-    import shutil
+    from shutil import rmtree
     try:
-        shutil.rmtree(path)
+        rmtree(path)
     except OSError:
         print("Failed to remove directory:", path)
 
@@ -35,7 +35,7 @@ def mkdir(path):
 
 
 def down_file(url, path):
-    from os.path import isfile, basename, exists
+    from os.path import isfile, dirname, exists
     from os import remove
     from urllib import request
     from sys import exit
@@ -44,9 +44,9 @@ def down_file(url, path):
             remove(path)
             request.urlretrieve(url, path)
         else:
-            basename = basename(path)
-            if exists(basename) is False:
-                mkdir(basename)
+            dirname = dirname(path)
+            if exists(dirname) is False:
+                mkdir(dirname)
             request.urlretrieve(url, path)
     except PermissionError:
         print("Permission denied! Please, run with sudo.")

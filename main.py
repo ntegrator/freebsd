@@ -101,7 +101,13 @@ def sha256_file(path):
     return hsh.hexdigest()
 
 
+def print_flush(phrase):
+    from os import get_terminal_size
+    print(phrase + ' ' * (get_terminal_size().columns - len(phrase)), end='\r')
+
+
 def sync_repo(name, path, arch, mirror_url, tries):
+    from os.path import basename, exists
     from os import listdir, remove
     from json import loads
     local_path = path + "/" + arch
@@ -120,24 +126,33 @@ def sync_repo(name, path, arch, mirror_url, tries):
     print("Unpacking packagesite.txz...")
     untar(local_path + "/temp/packagesite.txz", local_path + "/temp/")
 
-    print("Removing old packages...")   # TODO read from json
+    print("Processing packagesite.txz...")
+    pkgs = {}
     with open(local_path + "/temp/packagesite.yaml", "r") as f:
-        data = str(f.read())
+        for line in f:
+            data = loads(line)
+            pkgs[basename(data["path"])] = data["sum"]
+            print_flush("Processing: " + basename(data["path"]))
+        print_flush('')
+
+    if exists(local_path + "/latest/All/"):
+        print("Removing old packages...")
         for i in listdir(local_path + "/latest/All/"):
-            if i not in data:
+            if i not in pkgs:
+                print_flush("Removing the " + i)
                 remove(local_path + "/latest/All/" + i)
 
     print("Downloading", arch + "...")
     files = {"/latest/Latest/pkg-devel.txz", "/latest/Latest/pkg.txz", "/latest/Latest/pkg.txz.sig",
              "/latest/meta.conf", "/latest/meta.txz", "/latest/packagesite.txz"}
     for file in files:
+        print_flush("Downloading: " + basename(file))
         down_file(mirror_path + file, local_path + file)
 
-    with open(local_path + "/temp/packagesite.yaml", "r") as f:
-        for line in f:
-            data = loads(line)
-            file_path = local_path + "/latest/" + data["repopath"]
-            urlretrieve_and_check(mirror_path + "/latest/" + data["repopath"], file_path, data["sum"], int(tries))
+    for i in pkgs.keys():
+        file_path = local_path + "/latest/All/" + i
+        print_flush("Downloading / checking shasum: " + i)
+        urlretrieve_and_check(mirror_path + "/latest/All/" + i, file_path, pkgs.get(i), int(tries))
 
     print("Cleaning the temp directory...")
     rm_dir(local_path + "/temp/")

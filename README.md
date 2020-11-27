@@ -4,8 +4,9 @@
 В файле settings.ini необходимо указать следующие параметры:
 - [repo] - Название репозитория. Например, *[repo11]*
 - path - Путь к локальной копии репозитория. Например, *path=/tanker2/freebsd*
-- mirror_url - Зеркало для синхронизации. Например, *mirror_url=http://pkg0.nyi.freebsd.org*
+- mirror_url - Зеркало для синхронизации. Например, *mirror_url=http://pkg0.nyi.freebsd.org* (mirror_url=https://pkg.freebsd.org и т.д.)
 - arch - Архитектура и версия FreeBSD (как в репозитории). Например, *arch=FreeBSD:11:amd64*
+- release - Релиз FreeBSD (как в репозитории). Например, *release=latest* (*release=quarterly*, *release=release_0* и т.д.)
 - tries - Количество попыток загрузки каждого файла в папке All/. Значение 0 соответствует бесконечному числу попыток (пока sha256sum не будет соответствовать заявленной). Например, *tries=0*
 
 В файле settings.ini может быть указано любое количество репозиториев с различными параметрами. Например:
@@ -15,6 +16,7 @@
 path=/tanker2/freebsd
 mirror_url=http://pkg0.nyi.freebsd.org
 arch=FreeBSD:11:amd64
+release=latest
 tries=0
 [repka12]
 path=/other_path/free12
@@ -25,6 +27,7 @@ tries=1
 path=/other_path2/free12
 mirror_url=http://pkg0.pkt.freebsd.org
 arch=FreeBSD:11:i386
+release=latest
 tries=2
 ```
 

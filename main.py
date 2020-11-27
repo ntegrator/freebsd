@@ -106,56 +106,57 @@ def print_flush(phrase):
     print(phrase + ' ' * (get_terminal_size().columns - len(phrase)), end='\r')
 
 
-def sync_repo(name, path, arch, mirror_url, tries):
+def sync_repo(name, path, arch, mirror_url, release, tries):
     from os.path import basename, exists
     from os import listdir, remove
     from json import loads
-    local_path = path + "/" + arch
-    mirror_path = mirror_url + "/" + arch
+    local_path = path + "/" + arch + "/" + release + "/"
+    mirror_path = mirror_url + "/" + arch + "/" + release + "/"
 
     print("\nStarting syncing repository", name + " (" + arch + "):")
 
     print("Cleaning the", path, "directory...")
-    rm_files(local_path + "/latest/*.txz")
-    rm_files(local_path + "/latest/*.conf")
-    rm_files(local_path + "/latest/Latest/pkg*")
+    rm_files(local_path + release + "/*.txz")
+    rm_files(local_path + release + "/*.conf")
+    rm_files(local_path + release + "/Latest/pkg*")
 
     print("Downloading packagesite.txz...")
-    down_file(mirror_path + "/latest/packagesite.txz", local_path + "/temp/packagesite.txz")
+    down_file(mirror_path + "packagesite.txz", local_path + "temp/packagesite.txz")
 
     print("Unpacking packagesite.txz...")
-    untar(local_path + "/temp/packagesite.txz", local_path + "/temp/")
+    untar(local_path + "temp/packagesite.txz", local_path + "temp/")
 
     print("Processing packagesite.txz...")
     pkgs = {}
-    with open(local_path + "/temp/packagesite.yaml", "r") as f:
+    with open(local_path + "temp/packagesite.yaml", "r") as f:
         for line in f:
             data = loads(line)
             pkgs[basename(data["path"])] = data["sum"]
             print_flush("Processing: " + basename(data["path"]))
-        print_flush('')
+    print_flush('')
 
-    if exists(local_path + "/latest/All/"):
+    if exists(local_path + "All/"):
         print("Removing old packages...")
-        for i in listdir(local_path + "/latest/All/"):
+        for i in listdir(local_path + "All/"):
             if i not in pkgs:
                 print_flush("Removing the " + i)
-                remove(local_path + "/latest/All/" + i)
+                remove(local_path + "All/" + i)
+    print_flush('')
 
     print("Downloading", arch + "...")
-    files = {"/latest/Latest/pkg-devel.txz", "/latest/Latest/pkg.txz", "/latest/Latest/pkg.txz.sig",
-             "/latest/meta.conf", "/latest/meta.txz", "/latest/packagesite.txz"}
+    files = {"Latest/pkg-devel.txz", "Latest/pkg.txz", "Latest/pkg.txz.sig",
+             "meta.conf", "meta.txz", "packagesite.txz"}
     for file in files:
         print_flush("Downloading: " + basename(file))
         down_file(mirror_path + file, local_path + file)
 
     for i in pkgs.keys():
-        file_path = local_path + "/latest/All/" + i
+        file_path = local_path + "All/" + i
         print_flush("Downloading / checking shasum: " + i)
-        urlretrieve_and_check(mirror_path + "/latest/All/" + i, file_path, pkgs.get(i), int(tries))
+        urlretrieve_and_check(mirror_path + "All/" + i, file_path, pkgs.get(i), int(tries))
 
     print("Cleaning the temp directory...")
-    rm_dir(local_path + "/temp/")
+    rm_dir(local_path + "temp/")
 
     print("\n Complete syncing repository", name + "!\n")
 
@@ -166,7 +167,8 @@ def main():
     config.read("settings.ini")
 
     for i in config.sections():
-        sync_repo(i, config[i]["path"], config[i]["arch"], config[i]["mirror_url"], config[i]["tries"])
+        sync_repo(i, config[i]["path"], config[i]["arch"], config[i]["mirror_url"],
+                  config[i]["release"], config[i]["tries"])
 
 
 if __name__ == '__main__':

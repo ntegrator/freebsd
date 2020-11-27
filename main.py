@@ -106,6 +106,10 @@ def print_flush(phrase):
     print(phrase + ' ' * (get_terminal_size().columns - len(phrase)), end='\r')
 
 
+def percent(count, total):
+    return str(int(count / (total / 100))) + '%'
+
+
 def sync_repo(name, path, arch, mirror_url, release, tries):
     from os.path import basename, exists
     from os import listdir, remove
@@ -150,10 +154,14 @@ def sync_repo(name, path, arch, mirror_url, release, tries):
         print_flush("Downloading: " + basename(file))
         down_file(mirror_path + file, local_path + file)
 
+    count = 0
+    all_pkgs = len(pkgs)
     for i in pkgs.keys():
         file_path = local_path + "All/" + i
-        print_flush("Downloading / checking shasum: " + i)
+        print_flush(percent(count, all_pkgs) + " Download / check shasum: " + i)
         urlretrieve_and_check(mirror_path + "All/" + i, file_path, pkgs.get(i), int(tries))
+        count += 1
+    print_flush('')
 
     print("Cleaning the temp directory...")
     rm_dir(local_path + "temp/")
